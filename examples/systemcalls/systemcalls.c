@@ -15,7 +15,32 @@ bool do_system(const char *cmd)
  *  Call the system() function with the command set in the cmd
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
-*/
+*/  
+    if (cmd == NULL) {
+        syslog(LOG_ERR, "Command is null");
+        return false;
+    }
+
+    int res = system(cmd);
+
+    if (res == -1) {
+        syslog(LOG_ERR, "Error %s", strerror(errno));
+        return false;
+    }
+    
+    if (WIFEXITED(res)) {
+        int exit_code = WEXITSTATUS(res);
+        if (exit_code == 127) {
+            syslog(LOG_ERR, "Could not execute command in the child process");
+            return false;
+        } else if (exit_code != 0) {
+            syslog(LOG_ERR, "Running command in child process failed");
+            return false;
+        }
+    } else {
+        syslog(LOG_ERR, "The process interrupt or crash");
+        return false;
+    }
 
     return true;
 }
@@ -58,10 +83,37 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        syslog(LOG_ERR, "Can not fork new chill process");
+        va_end(args);
+        return false;
+    }
+
+    if (pid == 0) {
+        execv(command[0], command);
+
+        syslog(LOG_ERR, "exec child process failed");
+        va_end(args);
+
+        exit(EXIT_FAILURE);
+    }
 
     va_end(args);
 
-    return true;
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        syslog(LOG_ERR, "waitpid failed");
+        return false;
+    }
+
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        return true;
+    } else {
+        syslog(LOG_ERR, "Child process executed with command failed or crashed");
+        return false;
+    }
 }
 
 /**
@@ -92,6 +144,33 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        syslog(LOG_ERR, "Can not fork new chill process");
+        va_end(args);
+        return false;
+    }
+
+    if (pid == 0) {
+        int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+        if (fd < 0) { 
+            syslog(LOG_ERR, "Failed to open output file");
+            return false;
+        }
+
+        if (dup2(fd, 1) < 0) { 
+            syslog(LOG_ERR, "dup2 failed");
+        }
+
+        execv(command[0], command);
+
+        syslog(LOG_ERR, "exec child process failed");
+        va_end(args);
+        exit(EXIT_FAILURE);
+    } else {
+        wait(NULL);
+    }
 
     va_end(args);
 
