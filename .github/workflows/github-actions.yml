@@ -18,7 +18,7 @@ jobs:
 
     full-test:
         needs: unit-test
-        container: cuaesd/aesd-autotest:24-full-test
+        container: cuaesd/aesd-autotest:24-assignment3
         runs-on: self-hosted
         steps:
           - uses: actions/checkout@v2
