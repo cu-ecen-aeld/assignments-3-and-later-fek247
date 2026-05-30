@@ -1,11 +1,12 @@
-ifdef CROSS_COMPILE
-	cc = $(CROSS_COMPILE)gcc
-else
-	cc = gcc
-endif
+CC=$(CROSS_COMPILE)gcc
 
-all: 
-	$(cc) ./writer.c -o writer
+all: writer
+
+writer: writer.o
+	$(CC) -o writer writer.o
+
+writer.o: writer.c
+	$(CC) -c writer.c
 
 clean:
-	rm -rf writer *.o
+	rm -f writer *.o
